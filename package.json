@@ -8,6 +8,7 @@
     "build": "tsc",
     "test": "jest",
     "test:watch": "jest --watch",
+    "test:integration": "npm run build && node --test integration_tests/**/*.integration.test.mjs",
     "lint": "eslint src --ext .ts",
     "prepublishOnly": "npm run build"
   },
