@@ -28,7 +28,7 @@ npm install mock-aws-nodejs --save-dev
 
 ## Usage
 
-### Basic Example
+### Basic Example (Jest)
 
 ```typescript
 import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
@@ -71,6 +71,73 @@ describe('My S3 tests', () => {
     expect(body).toBe('Hello, World!');
   });
 });
+```
+
+### Using with Node.js Built-in Test Module
+
+The library fully supports Node.js's built-in `node:test` module (Node.js 18+):
+
+```javascript
+// test/s3.test.mjs - Run with: node --test test/s3.test.mjs
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert';
+import { S3Client, PutObjectCommand, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3MockClient, S3MockStore } from 'mock-aws-nodejs';
+
+describe('S3 operations', () => {
+  let s3Client;
+  let mockClient;
+  let store;
+
+  beforeEach(() => {
+    store = new S3MockStore();
+    s3Client = new S3Client({ region: 'us-east-1' });
+    mockClient = new S3MockClient(store);
+    mockClient.install(s3Client);
+  });
+
+  afterEach(() => {
+    mockClient.restore();
+    mockClient.reset();
+  });
+
+  it('should store and retrieve objects', async () => {
+    await s3Client.send(new PutObjectCommand({
+      Bucket: 'my-bucket',
+      Key: 'test.txt',
+      Body: 'Hello, World!',
+    }));
+
+    const response = await s3Client.send(new GetObjectCommand({
+      Bucket: 'my-bucket',
+      Key: 'test.txt',
+    }));
+
+    const body = await response.Body?.transformToString();
+    assert.strictEqual(body, 'Hello, World!');
+  });
+
+  it('should throw NoSuchKey for missing objects', async () => {
+    await assert.rejects(
+      async () => {
+        await s3Client.send(new GetObjectCommand({
+          Bucket: 'my-bucket',
+          Key: 'nonexistent.txt',
+        }));
+      },
+      (error) => {
+        assert.strictEqual(error.name, 'NoSuchKey');
+        assert.strictEqual(error.$metadata?.httpStatusCode, 404);
+        return true;
+      }
+    );
+  });
+});
+```
+
+Run with:
+```bash
+node --test test/s3.test.mjs
 ```
 
 ### Quick Setup with Helper Function
