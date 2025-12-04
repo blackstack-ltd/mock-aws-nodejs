@@ -1,5 +1,25 @@
-import type { ChecksumAlgorithm, ObjectCannedACL, StorageClass } from '@aws-sdk/client-s3';
-import { createHash } from 'crypto';
+import type {
+  ChecksumAlgorithm,
+  ObjectCannedACL,
+  StorageClass,
+  ServerSideEncryption,
+  BucketCannedACL,
+  BucketVersioningStatus,
+  Tag,
+  CORSRule,
+  LifecycleRule,
+  NotificationConfiguration,
+  ReplicationConfiguration,
+  AccelerateConfiguration,
+  BucketLoggingStatus,
+  ObjectLockConfiguration,
+  PublicAccessBlockConfiguration,
+  AnalyticsConfiguration,
+  InventoryConfiguration,
+  MetricsConfiguration,
+  RequestPaymentConfiguration,
+} from '@aws-sdk/client-s3';
+import { createHash, randomUUID } from 'crypto';
 import type { MockStore } from '../core/types';
 
 /**
@@ -53,7 +73,97 @@ export interface StoredObject {
   /** Checksum SHA256 */
   checksumSHA256?: string;
   /** Tags */
-  tagging?: string;
+  tags?: Tag[];
+  /** Object Lock Mode */
+  objectLockMode?: string;
+  /** Object Lock Retain Until Date */
+  objectLockRetainUntilDate?: Date;
+  /** Object Lock Legal Hold Status */
+  objectLockLegalHoldStatus?: string;
+  /** Restore status */
+  restoreStatus?: {
+    isRestoreInProgress?: boolean;
+    restoreExpiryDate?: Date;
+  };
+}
+
+/**
+ * Represents bucket configuration
+ */
+export interface BucketConfiguration {
+  /** Versioning configuration */
+  versioning?: {
+    Status?: BucketVersioningStatus;
+    MFADelete?: 'Enabled' | 'Disabled';
+  };
+  /** CORS configuration */
+  cors?: CORSRule[];
+  /** Bucket policy */
+  policy?: string;
+  /** Bucket ACL */
+  acl?: {
+    Owner?: { DisplayName?: string; ID?: string };
+    Grants?: Array<{
+      Grantee?: {
+        Type: string;
+        DisplayName?: string;
+        ID?: string;
+        URI?: string;
+        EmailAddress?: string;
+      };
+      Permission?: string;
+    }>;
+  };
+  /** Server-side encryption configuration */
+  encryption?: {
+    Rules: Array<{
+      ApplyServerSideEncryptionByDefault?: {
+        SSEAlgorithm: ServerSideEncryption;
+        KMSMasterKeyID?: string;
+      };
+      BucketKeyEnabled?: boolean;
+    }>;
+  };
+  /** Lifecycle configuration */
+  lifecycle?: LifecycleRule[];
+  /** Website configuration */
+  website?: {
+    IndexDocument?: { Suffix: string };
+    ErrorDocument?: { Key: string };
+    RedirectAllRequestsTo?: { HostName: string; Protocol?: string };
+    RoutingRules?: Array<{
+      Condition?: { HttpErrorCodeReturnedEquals?: string; KeyPrefixEquals?: string };
+      Redirect: {
+        HostName?: string;
+        HttpRedirectCode?: string;
+        Protocol?: string;
+        ReplaceKeyPrefixWith?: string;
+        ReplaceKeyWith?: string;
+      };
+    }>;
+  };
+  /** Bucket tags */
+  tags?: Tag[];
+  /** Notification configuration */
+  notification?: NotificationConfiguration;
+  /** Replication configuration */
+  replication?: ReplicationConfiguration;
+  /** Accelerate configuration */
+  accelerate?: AccelerateConfiguration;
+  /** Logging configuration */
+  logging?: BucketLoggingStatus;
+  /** Object Lock configuration */
+  objectLock?: ObjectLockConfiguration;
+  /** Public Access Block configuration */
+  publicAccessBlock?: PublicAccessBlockConfiguration;
+  /** Analytics configurations */
+  analytics?: Map<string, AnalyticsConfiguration>;
+  /** Inventory configurations */
+  inventory?: Map<string, InventoryConfiguration>;
+  /** Metrics configurations */
+  metrics?: Map<string, MetricsConfiguration>;
+  /** Request payment configuration */
+  requestPayment?: RequestPaymentConfiguration;
 }
 
 /**
@@ -66,8 +176,54 @@ export interface StoredBucket {
   creationDate: Date;
   /** Region */
   region?: string;
-  /** Versioning enabled */
-  versioningEnabled?: boolean;
+  /** Bucket configuration */
+  configuration: BucketConfiguration;
+}
+
+/**
+ * Represents a multipart upload
+ */
+export interface MultipartUpload {
+  /** Upload ID */
+  uploadId: string;
+  /** Bucket name */
+  bucket: string;
+  /** Object key */
+  key: string;
+  /** Initiated timestamp */
+  initiated: Date;
+  /** Storage class */
+  storageClass?: StorageClass;
+  /** Uploaded parts */
+  parts: Map<number, UploadedPart>;
+  /** Metadata */
+  metadata?: Record<string, string>;
+  /** Content-Type */
+  contentType?: string;
+  /** Server-side encryption */
+  serverSideEncryption?: string;
+  /** SSE-KMS key ID */
+  sseKmsKeyId?: string;
+  /** ACL */
+  acl?: ObjectCannedACL;
+  /** Tags */
+  tags?: Tag[];
+}
+
+/**
+ * Represents an uploaded part in a multipart upload
+ */
+export interface UploadedPart {
+  /** Part number */
+  partNumber: number;
+  /** ETag */
+  etag: string;
+  /** Part size */
+  size: number;
+  /** Part data */
+  data: Buffer;
+  /** Last modified */
+  lastModified: Date;
 }
 
 /**
@@ -77,11 +233,12 @@ export interface StoredBucket {
 export class S3MockStore implements MockStore {
   private buckets: Map<string, StoredBucket> = new Map();
   private objects: Map<string, Map<string, StoredObject>> = new Map();
+  private multipartUploads: Map<string, MultipartUpload> = new Map();
 
   /**
    * Create a bucket
    */
-  createBucket(name: string, region?: string): StoredBucket {
+  createBucket(name: string, region?: string, acl?: BucketCannedACL): StoredBucket {
     if (this.buckets.has(name)) {
       throw new Error(`Bucket already exists: ${name}`);
     }
@@ -90,11 +247,97 @@ export class S3MockStore implements MockStore {
       name,
       creationDate: new Date(),
       region,
+      configuration: {
+        analytics: new Map(),
+        inventory: new Map(),
+        metrics: new Map(),
+      },
     };
+
+    // Set default ACL if provided
+    if (acl) {
+      bucket.configuration.acl = this.getDefaultBucketAcl(acl);
+    }
 
     this.buckets.set(name, bucket);
     this.objects.set(name, new Map());
     return bucket;
+  }
+
+  /**
+   * Get default bucket ACL based on canned ACL
+   */
+  private getDefaultBucketAcl(cannedAcl: BucketCannedACL) {
+    const owner = { ID: 'default-owner-id', DisplayName: 'default-owner' };
+
+    switch (cannedAcl) {
+      case 'private':
+        return {
+          Owner: owner,
+          Grants: [
+            {
+              Grantee: { Type: 'CanonicalUser', ID: owner.ID },
+              Permission: 'FULL_CONTROL',
+            },
+          ],
+        };
+      case 'public-read':
+        return {
+          Owner: owner,
+          Grants: [
+            {
+              Grantee: { Type: 'CanonicalUser', ID: owner.ID },
+              Permission: 'FULL_CONTROL',
+            },
+            {
+              Grantee: { Type: 'Group', URI: 'http://acs.amazonaws.com/groups/global/AllUsers' },
+              Permission: 'READ',
+            },
+          ],
+        };
+      case 'public-read-write':
+        return {
+          Owner: owner,
+          Grants: [
+            {
+              Grantee: { Type: 'CanonicalUser', ID: owner.ID },
+              Permission: 'FULL_CONTROL',
+            },
+            {
+              Grantee: { Type: 'Group', URI: 'http://acs.amazonaws.com/groups/global/AllUsers' },
+              Permission: 'READ',
+            },
+            {
+              Grantee: { Type: 'Group', URI: 'http://acs.amazonaws.com/groups/global/AllUsers' },
+              Permission: 'WRITE',
+            },
+          ],
+        };
+      case 'authenticated-read':
+        return {
+          Owner: owner,
+          Grants: [
+            {
+              Grantee: { Type: 'CanonicalUser', ID: owner.ID },
+              Permission: 'FULL_CONTROL',
+            },
+            {
+              Grantee: { Type: 'Group', URI: 'http://acs.amazonaws.com/groups/global/AuthenticatedUsers' },
+              Permission: 'READ',
+            },
+          ],
+        };
+      default:
+        return {
+          Owner: owner,
+          Grants: [
+            {
+              Grantee: { Type: 'CanonicalUser', ID: owner.ID },
+              Permission: 'FULL_CONTROL',
+            },
+          ],
+        };
+    }
   }
 
   /**
@@ -198,7 +441,7 @@ export class S3MockStore implements MockStore {
       checksumCRC32C: options.checksumCRC32C,
       checksumSHA1: options.checksumSHA1,
       checksumSHA256: options.checksumSHA256,
-      tagging: options.tagging,
+      tags: options.tags,
     };
 
     bucketObjects.set(key, object);
@@ -317,11 +560,249 @@ export class S3MockStore implements MockStore {
   }
 
   /**
+   * Copy an object from one location to another
+   */
+  copyObject(
+    sourceBucket: string,
+    sourceKey: string,
+    destBucket: string,
+    destKey: string,
+    options: Partial<Omit<StoredObject, 'key' | 'body' | 'etag' | 'lastModified' | 'contentLength'>> = {}
+  ): StoredObject {
+    const sourceObject = this.getObject(sourceBucket, sourceKey);
+    if (!sourceObject) {
+      throw new Error(`Source object does not exist: ${sourceBucket}/${sourceKey}`);
+    }
+
+    // Copy the object with new metadata
+    return this.putObject(destBucket, destKey, sourceObject.body, {
+      ...sourceObject,
+      ...options,
+    });
+  }
+
+  // ==================== Multipart Upload Methods ====================
+
+  /**
+   * Create a multipart upload
+   */
+  createMultipartUpload(
+    bucket: string,
+    key: string,
+    options: {
+      metadata?: Record<string, string>;
+      contentType?: string;
+      storageClass?: StorageClass;
+      serverSideEncryption?: string;
+      sseKmsKeyId?: string;
+      acl?: ObjectCannedACL;
+      tags?: Tag[];
+    } = {}
+  ): MultipartUpload {
+    this.ensureBucket(bucket);
+
+    const uploadId = randomUUID();
+    const upload: MultipartUpload = {
+      uploadId,
+      bucket,
+      key,
+      initiated: new Date(),
+      parts: new Map(),
+      ...options,
+    };
+
+    this.multipartUploads.set(uploadId, upload);
+    return upload;
+  }
+
+  /**
+   * Upload a part for a multipart upload
+   */
+  uploadPart(
+    uploadId: string,
+    partNumber: number,
+    data: Buffer
+  ): UploadedPart {
+    const upload = this.multipartUploads.get(uploadId);
+    if (!upload) {
+      throw new Error(`Multipart upload not found: ${uploadId}`);
+    }
+
+    const etag = `"${createHash('md5').update(data).digest('hex')}"`;
+    const part: UploadedPart = {
+      partNumber,
+      etag,
+      size: data.length,
+      data,
+      lastModified: new Date(),
+    };
+
+    upload.parts.set(partNumber, part);
+    return part;
+  }
+
+  /**
+   * Complete a multipart upload
+   */
+  completeMultipartUpload(
+    uploadId: string,
+    parts: Array<{ PartNumber: number; ETag: string }>
+  ): StoredObject {
+    const upload = this.multipartUploads.get(uploadId);
+    if (!upload) {
+      throw new Error(`Multipart upload not found: ${uploadId}`);
+    }
+
+    // Verify all parts exist and match ETags
+    const orderedParts: UploadedPart[] = [];
+    for (const partInfo of parts) {
+      const part = upload.parts.get(partInfo.PartNumber);
+      if (!part) {
+        throw new Error(`Part ${partInfo.PartNumber} not found`);
+      }
+      if (part.etag !== partInfo.ETag) {
+        throw new Error(`ETag mismatch for part ${partInfo.PartNumber}`);
+      }
+      orderedParts.push(part);
+    }
+
+    // Concatenate all parts
+    const body = Buffer.concat(orderedParts.map((p) => p.data));
+
+    // Create the final object
+    const object = this.putObject(upload.bucket, upload.key, body, {
+      metadata: upload.metadata,
+      contentType: upload.contentType,
+      storageClass: upload.storageClass,
+      serverSideEncryption: upload.serverSideEncryption,
+      sseKmsKeyId: upload.sseKmsKeyId,
+      acl: upload.acl,
+      tags: upload.tags,
+    });
+
+    // Clean up the multipart upload
+    this.multipartUploads.delete(uploadId);
+
+    return object;
+  }
+
+  /**
+   * Abort a multipart upload
+   */
+  abortMultipartUpload(uploadId: string): boolean {
+    return this.multipartUploads.delete(uploadId);
+  }
+
+  /**
+   * List multipart uploads for a bucket
+   */
+  listMultipartUploads(bucket: string, options: { prefix?: string; maxUploads?: number } = {}): MultipartUpload[] {
+    const uploads = Array.from(this.multipartUploads.values()).filter(
+      (upload) =>
+        upload.bucket === bucket && (!options.prefix || upload.key.startsWith(options.prefix))
+    );
+
+    return uploads.slice(0, options.maxUploads || 1000);
+  }
+
+  /**
+   * Get multipart upload
+   */
+  getMultipartUpload(uploadId: string): MultipartUpload | undefined {
+    return this.multipartUploads.get(uploadId);
+  }
+
+  /**
+   * List parts for a multipart upload
+   */
+  listParts(uploadId: string, options: { maxParts?: number; partNumberMarker?: number } = {}): UploadedPart[] {
+    const upload = this.multipartUploads.get(uploadId);
+    if (!upload) {
+      throw new Error(`Multipart upload not found: ${uploadId}`);
+    }
+
+    let parts = Array.from(upload.parts.values()).sort((a, b) => a.partNumber - b.partNumber);
+
+    if (options.partNumberMarker) {
+      parts = parts.filter((p) => p.partNumber > options.partNumberMarker!);
+    }
+
+    return parts.slice(0, options.maxParts || 1000);
+  }
+
+  // ==================== Bucket Configuration Methods ====================
+
+  /**
+   * Get bucket configuration
+   */
+  getBucketConfiguration(bucket: string): BucketConfiguration {
+    const storedBucket = this.buckets.get(bucket);
+    if (!storedBucket) {
+      throw new Error(`Bucket does not exist: ${bucket}`);
+    }
+    return storedBucket.configuration;
+  }
+
+  /**
+   * Update bucket configuration
+   */
+  updateBucketConfiguration(bucket: string, config: Partial<BucketConfiguration>): void {
+    const storedBucket = this.buckets.get(bucket);
+    if (!storedBucket) {
+      throw new Error(`Bucket does not exist: ${bucket}`);
+    }
+    storedBucket.configuration = { ...storedBucket.configuration, ...config };
+  }
+
+  // ==================== Object Tagging Methods ====================
+
+  /**
+   * Get object tags
+   */
+  getObjectTags(bucket: string, key: string): Tag[] | undefined {
+    const object = this.getObject(bucket, key);
+    return object?.tags;
+  }
+
+  /**
+   * Set object tags
+   */
+  setObjectTags(bucket: string, key: string, tags: Tag[]): void {
+    const bucketObjects = this.objects.get(bucket);
+    if (!bucketObjects) {
+      throw new Error(`Bucket does not exist: ${bucket}`);
+    }
+
+    const object = bucketObjects.get(key);
+    if (!object) {
+      throw new Error(`Object does not exist: ${key}`);
+    }
+
+    object.tags = tags;
+  }
+
+  /**
+   * Delete object tags
+   */
+  deleteObjectTags(bucket: string, key: string): void {
+    const bucketObjects = this.objects.get(bucket);
+    if (!bucketObjects) {
+      throw new Error(`Bucket does not exist: ${bucket}`);
+    }
+
+    const object = bucketObjects.get(key);
+    if (object) {
+      object.tags = undefined;
+    }
+  }
+
+  /**
    * Reset the store to empty state
    */
   reset(): void {
     this.buckets.clear();
     this.objects.clear();
+    this.multipartUploads.clear();
   }
 
   /**

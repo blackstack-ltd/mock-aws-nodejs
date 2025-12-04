@@ -5,6 +5,51 @@ import {
   HeadObjectCommand,
   DeleteObjectCommand,
   ListObjectsV2Command,
+  CreateBucketCommand,
+  DeleteBucketCommand,
+  ListBucketsCommand,
+  HeadBucketCommand,
+  GetBucketLocationCommand,
+  CopyObjectCommand,
+  DeleteObjectsCommand,
+  ListObjectsCommand,
+  GetObjectAttributesCommand,
+  GetObjectTaggingCommand,
+  PutObjectTaggingCommand,
+  DeleteObjectTaggingCommand,
+  GetObjectAclCommand,
+  PutObjectAclCommand,
+  CreateMultipartUploadCommand,
+  UploadPartCommand,
+  UploadPartCopyCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
+  ListMultipartUploadsCommand,
+  ListPartsCommand,
+  GetBucketVersioningCommand,
+  PutBucketVersioningCommand,
+  GetBucketCorsCommand,
+  PutBucketCorsCommand,
+  DeleteBucketCorsCommand,
+  GetBucketPolicyCommand,
+  PutBucketPolicyCommand,
+  DeleteBucketPolicyCommand,
+  GetBucketAclCommand,
+  PutBucketAclCommand,
+  GetBucketEncryptionCommand,
+  PutBucketEncryptionCommand,
+  DeleteBucketEncryptionCommand,
+  GetBucketLifecycleConfigurationCommand,
+  PutBucketLifecycleConfigurationCommand,
+  DeleteBucketLifecycleCommand,
+  GetBucketWebsiteCommand,
+  PutBucketWebsiteCommand,
+  DeleteBucketWebsiteCommand,
+  GetBucketTaggingCommand,
+  PutBucketTaggingCommand,
+  DeleteBucketTaggingCommand,
+  GetBucketLoggingCommand,
+  PutBucketLoggingCommand,
 } from '@aws-sdk/client-s3';
 import { MockClient } from '../core/MockClient';
 import { S3MockStore, getDefaultS3Store } from './S3MockStore';
@@ -14,6 +59,51 @@ import {
   createHeadObjectHandler,
   createDeleteObjectHandler,
   createListObjectsV2Handler,
+  createCreateBucketHandler,
+  createDeleteBucketHandler,
+  createListBucketsHandler,
+  createHeadBucketHandler,
+  createGetBucketLocationHandler,
+  createCopyObjectHandler,
+  createDeleteObjectsHandler,
+  createListObjectsHandler,
+  createGetObjectAttributesHandler,
+  createGetObjectTaggingHandler,
+  createPutObjectTaggingHandler,
+  createDeleteObjectTaggingHandler,
+  createGetObjectAclHandler,
+  createPutObjectAclHandler,
+  createCreateMultipartUploadHandler,
+  createUploadPartHandler,
+  createUploadPartCopyHandler,
+  createCompleteMultipartUploadHandler,
+  createAbortMultipartUploadHandler,
+  createListMultipartUploadsHandler,
+  createListPartsHandler,
+  createGetBucketVersioningHandler,
+  createPutBucketVersioningHandler,
+  createGetBucketCorsHandler,
+  createPutBucketCorsHandler,
+  createDeleteBucketCorsHandler,
+  createGetBucketPolicyHandler,
+  createPutBucketPolicyHandler,
+  createDeleteBucketPolicyHandler,
+  createGetBucketAclHandler,
+  createPutBucketAclHandler,
+  createGetBucketEncryptionHandler,
+  createPutBucketEncryptionHandler,
+  createDeleteBucketEncryptionHandler,
+  createGetBucketLifecycleConfigurationHandler,
+  createPutBucketLifecycleConfigurationHandler,
+  createDeleteBucketLifecycleHandler,
+  createGetBucketWebsiteHandler,
+  createPutBucketWebsiteHandler,
+  createDeleteBucketWebsiteHandler,
+  createGetBucketTaggingHandler,
+  createPutBucketTaggingHandler,
+  createDeleteBucketTaggingHandler,
+  createGetBucketLoggingHandler,
+  createPutBucketLoggingHandler,
 } from './handlers';
 
 /**
@@ -133,20 +223,83 @@ export class S3MockClient extends MockClient<S3Client> {
    * Register default handlers for all supported S3 commands
    */
   private registerDefaultHandlers(): void {
-    // Register PutObject handler
+    // ==================== Bucket Management Commands ====================
+    this.registerDefaultHandler(CreateBucketCommand, createCreateBucketHandler(this.store));
+    this.registerDefaultHandler(DeleteBucketCommand, createDeleteBucketHandler(this.store));
+    this.registerDefaultHandler(ListBucketsCommand, createListBucketsHandler(this.store));
+    this.registerDefaultHandler(HeadBucketCommand, createHeadBucketHandler(this.store));
+    this.registerDefaultHandler(GetBucketLocationCommand, createGetBucketLocationHandler(this.store));
+
+    // ==================== Object Operations ====================
     this.registerDefaultHandler(PutObjectCommand, createPutObjectHandler(this.store));
-
-    // Register GetObject handler
     this.registerDefaultHandler(GetObjectCommand, createGetObjectHandler(this.store));
-
-    // Register HeadObject handler
     this.registerDefaultHandler(HeadObjectCommand, createHeadObjectHandler(this.store));
-
-    // Register DeleteObject handler
     this.registerDefaultHandler(DeleteObjectCommand, createDeleteObjectHandler(this.store));
-
-    // Register ListObjectsV2 handler
+    this.registerDefaultHandler(CopyObjectCommand, createCopyObjectHandler(this.store));
+    this.registerDefaultHandler(DeleteObjectsCommand, createDeleteObjectsHandler(this.store));
+    this.registerDefaultHandler(ListObjectsCommand, createListObjectsHandler(this.store));
     this.registerDefaultHandler(ListObjectsV2Command, createListObjectsV2Handler(this.store));
+    this.registerDefaultHandler(GetObjectAttributesCommand, createGetObjectAttributesHandler(this.store));
+
+    // ==================== Object Tagging ====================
+    this.registerDefaultHandler(GetObjectTaggingCommand, createGetObjectTaggingHandler(this.store));
+    this.registerDefaultHandler(PutObjectTaggingCommand, createPutObjectTaggingHandler(this.store));
+    this.registerDefaultHandler(DeleteObjectTaggingCommand, createDeleteObjectTaggingHandler(this.store));
+
+    // ==================== Object ACL ====================
+    this.registerDefaultHandler(GetObjectAclCommand, createGetObjectAclHandler(this.store));
+    this.registerDefaultHandler(PutObjectAclCommand, createPutObjectAclHandler(this.store));
+
+    // ==================== Multipart Upload ====================
+    this.registerDefaultHandler(CreateMultipartUploadCommand, createCreateMultipartUploadHandler(this.store));
+    this.registerDefaultHandler(UploadPartCommand, createUploadPartHandler(this.store));
+    this.registerDefaultHandler(UploadPartCopyCommand, createUploadPartCopyHandler(this.store));
+    this.registerDefaultHandler(CompleteMultipartUploadCommand, createCompleteMultipartUploadHandler(this.store));
+    this.registerDefaultHandler(AbortMultipartUploadCommand, createAbortMultipartUploadHandler(this.store));
+    this.registerDefaultHandler(ListMultipartUploadsCommand, createListMultipartUploadsHandler(this.store));
+    this.registerDefaultHandler(ListPartsCommand, createListPartsHandler(this.store));
+
+    // ==================== Bucket Versioning ====================
+    this.registerDefaultHandler(GetBucketVersioningCommand, createGetBucketVersioningHandler(this.store));
+    this.registerDefaultHandler(PutBucketVersioningCommand, createPutBucketVersioningHandler(this.store));
+
+    // ==================== Bucket CORS ====================
+    this.registerDefaultHandler(GetBucketCorsCommand, createGetBucketCorsHandler(this.store));
+    this.registerDefaultHandler(PutBucketCorsCommand, createPutBucketCorsHandler(this.store));
+    this.registerDefaultHandler(DeleteBucketCorsCommand, createDeleteBucketCorsHandler(this.store));
+
+    // ==================== Bucket Policy ====================
+    this.registerDefaultHandler(GetBucketPolicyCommand, createGetBucketPolicyHandler(this.store));
+    this.registerDefaultHandler(PutBucketPolicyCommand, createPutBucketPolicyHandler(this.store));
+    this.registerDefaultHandler(DeleteBucketPolicyCommand, createDeleteBucketPolicyHandler(this.store));
+
+    // ==================== Bucket ACL ====================
+    this.registerDefaultHandler(GetBucketAclCommand, createGetBucketAclHandler(this.store));
+    this.registerDefaultHandler(PutBucketAclCommand, createPutBucketAclHandler(this.store));
+
+    // ==================== Bucket Encryption ====================
+    this.registerDefaultHandler(GetBucketEncryptionCommand, createGetBucketEncryptionHandler(this.store));
+    this.registerDefaultHandler(PutBucketEncryptionCommand, createPutBucketEncryptionHandler(this.store));
+    this.registerDefaultHandler(DeleteBucketEncryptionCommand, createDeleteBucketEncryptionHandler(this.store));
+
+    // ==================== Bucket Lifecycle ====================
+    this.registerDefaultHandler(GetBucketLifecycleConfigurationCommand, createGetBucketLifecycleConfigurationHandler(this.store));
+    this.registerDefaultHandler(PutBucketLifecycleConfigurationCommand, createPutBucketLifecycleConfigurationHandler(this.store));
+    this.registerDefaultHandler(DeleteBucketLifecycleCommand, createDeleteBucketLifecycleHandler(this.store));
+
+    // ==================== Bucket Website ====================
+    this.registerDefaultHandler(GetBucketWebsiteCommand, createGetBucketWebsiteHandler(this.store));
+    this.registerDefaultHandler(PutBucketWebsiteCommand, createPutBucketWebsiteHandler(this.store));
+    this.registerDefaultHandler(DeleteBucketWebsiteCommand, createDeleteBucketWebsiteHandler(this.store));
+
+    // ==================== Bucket Tagging ====================
+    this.registerDefaultHandler(GetBucketTaggingCommand, createGetBucketTaggingHandler(this.store));
+    this.registerDefaultHandler(PutBucketTaggingCommand, createPutBucketTaggingHandler(this.store));
+    this.registerDefaultHandler(DeleteBucketTaggingCommand, createDeleteBucketTaggingHandler(this.store));
+
+    // ==================== Bucket Logging ====================
+    this.registerDefaultHandler(GetBucketLoggingCommand, createGetBucketLoggingHandler(this.store));
+    this.registerDefaultHandler(PutBucketLoggingCommand, createPutBucketLoggingHandler(this.store));
   }
 }
 

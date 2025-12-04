@@ -19,12 +19,87 @@ npm install mock-aws-nodejs --save-dev
 
 ## Supported Services
 
-### S3
+### S3 - Comprehensive Support
+
+The library now supports **all major S3 operations** including bucket management, object operations, multipart uploads, tagging, ACLs, and bucket configurations.
+
+#### Bucket Operations
+- `CreateBucketCommand` - Create buckets
+- `DeleteBucketCommand` - Delete buckets
+- `ListBucketsCommand` - List all buckets
+- `HeadBucketCommand` - Check if bucket exists
+- `GetBucketLocationCommand` - Get bucket region
+
+#### Object Operations
 - `PutObjectCommand` - Store objects
 - `GetObjectCommand` - Retrieve objects (with range request support)
 - `HeadObjectCommand` - Get object metadata
-- `DeleteObjectCommand` - Delete objects
-- `ListObjectsV2Command` - List objects (with pagination, prefix, delimiter support)
+- `DeleteObjectCommand` - Delete single object
+- `CopyObjectCommand` - Copy objects between buckets/keys
+- `DeleteObjectsCommand` - Batch delete objects
+- `ListObjectsCommand` - List objects (V1)
+- `ListObjectsV2Command` - List objects (V2 with pagination, prefix, delimiter support)
+- `GetObjectAttributesCommand` - Get object attributes and checksums
+
+#### Object Tagging
+- `GetObjectTaggingCommand` - Get object tags
+- `PutObjectTaggingCommand` - Set object tags
+- `DeleteObjectTaggingCommand` - Remove object tags
+
+#### Object ACL
+- `GetObjectAclCommand` - Get object access control list
+- `PutObjectAclCommand` - Set object access control list
+
+#### Multipart Upload
+- `CreateMultipartUploadCommand` - Initiate multipart upload
+- `UploadPartCommand` - Upload a part
+- `UploadPartCopyCommand` - Copy a part from another object
+- `CompleteMultipartUploadCommand` - Complete multipart upload
+- `AbortMultipartUploadCommand` - Abort multipart upload
+- `ListMultipartUploadsCommand` - List in-progress uploads
+- `ListPartsCommand` - List uploaded parts
+
+#### Bucket Versioning
+- `GetBucketVersioningCommand` - Get versioning configuration
+- `PutBucketVersioningCommand` - Set versioning configuration
+
+#### Bucket CORS
+- `GetBucketCorsCommand` - Get CORS configuration
+- `PutBucketCorsCommand` - Set CORS configuration
+- `DeleteBucketCorsCommand` - Remove CORS configuration
+
+#### Bucket Policy
+- `GetBucketPolicyCommand` - Get bucket policy
+- `PutBucketPolicyCommand` - Set bucket policy
+- `DeleteBucketPolicyCommand` - Remove bucket policy
+
+#### Bucket ACL
+- `GetBucketAclCommand` - Get bucket access control list
+- `PutBucketAclCommand` - Set bucket access control list
+
+#### Bucket Encryption
+- `GetBucketEncryptionCommand` - Get encryption configuration
+- `PutBucketEncryptionCommand` - Set encryption configuration
+- `DeleteBucketEncryptionCommand` - Remove encryption configuration
+
+#### Bucket Lifecycle
+- `GetBucketLifecycleConfigurationCommand` - Get lifecycle rules
+- `PutBucketLifecycleConfigurationCommand` - Set lifecycle rules
+- `DeleteBucketLifecycleCommand` - Remove lifecycle configuration
+
+#### Bucket Website
+- `GetBucketWebsiteCommand` - Get website configuration
+- `PutBucketWebsiteCommand` - Set website configuration
+- `DeleteBucketWebsiteCommand` - Remove website configuration
+
+#### Bucket Tagging
+- `GetBucketTaggingCommand` - Get bucket tags
+- `PutBucketTaggingCommand` - Set bucket tags
+- `DeleteBucketTaggingCommand` - Remove bucket tags
+
+#### Bucket Logging
+- `GetBucketLoggingCommand` - Get logging configuration
+- `PutBucketLoggingCommand` - Set logging configuration
 
 ## Usage
 
