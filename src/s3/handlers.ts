@@ -1372,6 +1372,36 @@ export function createGetBucketPolicyHandler(store: S3MockStore) {
   };
 }
 
+function normalizePolicyDocument(policy: string): string {
+  try {
+    const doc = JSON.parse(policy) as { Statement?: unknown };
+    const normalizeStatement = (stmt: any) => {
+      const flattenField = (field: string) => {
+        const value = stmt[field];
+        if (Array.isArray(value) && value.length === 1) {
+          stmt[field] = value[0];
+        }
+      };
+
+      flattenField('Action');
+      flattenField('NotAction');
+      flattenField('Resource');
+      flattenField('NotResource');
+    };
+
+    if (Array.isArray((doc as any).Statement)) {
+      (doc as any).Statement.forEach((s: any) => normalizeStatement(s));
+    } else if ((doc as any).Statement) {
+      normalizeStatement((doc as any).Statement);
+    }
+
+    return JSON.stringify(doc);
+  } catch {
+    // If parsing fails, fall back to the original string
+    return policy;
+  }
+}
+
 export function createPutBucketPolicyHandler(store: S3MockStore) {
   return async (input: PutBucketPolicyCommandInput): Promise<PutBucketPolicyCommandOutput> => {
     const { Bucket, Policy } = input;
@@ -1384,8 +1414,10 @@ export function createPutBucketPolicyHandler(store: S3MockStore) {
       throw createAwsError('NoSuchBucket', `The specified bucket does not exist: ${Bucket}`, 404);
     }
 
+    const normalized = normalizePolicyDocument(Policy);
+
     store.updateBucketConfiguration(Bucket, {
-      policy: Policy,
+      policy: normalized,
     });
 
     const response: PutBucketPolicyCommandOutput = {

@@ -61,7 +61,9 @@ import {
   HeadBucketCommand,
   ListBucketsCommand,
   GetBucketLocationCommand,
+  PutBucketOwnershipControlsCommand,
 } from '@aws-sdk/client-s3';
+import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import lib from '../dist/index.js';
 
 // dist/index.js is CommonJS; when imported from ESM we get its exports under the default.
@@ -69,6 +71,15 @@ const { S3MockClient } = lib;
 
 const region = process.env.AWS_REGION || 'us-east-1';
 const bucketPrefix = process.env.AWS_S3_TEST_BUCKET_PREFIX || 'mock-aws-nodejs-it';
+
+let accountIdPromise;
+async function getAccountId() {
+  if (!accountIdPromise) {
+    const sts = new STSClient({ region });
+    accountIdPromise = sts.send(new GetCallerIdentityCommand({})).then((r) => r.Account);
+  }
+  return accountIdPromise;
+}
 
 function uniqueBucketName(suffix) {
   const ts = Date.now().toString(36);
@@ -680,13 +691,16 @@ test('Bucket CORS configuration behaves consistently', async (t) => {
 
 test('Bucket policy behaves consistently (where permitted)', async (t) => {
   await withIsolatedBuckets(t, async ({ realS3, s3ForMock, realBucket, mockBucket }) => {
+    const accountId = await getAccountId();
+    const principalArn = `arn:aws:iam::${accountId}:root`;
+
     const policyObject = {
       Version: '2012-10-17',
       Statement: [
         {
           Sid: 'TestStatement',
           Effect: 'Allow',
-          Principal: { AWS: 'arn:aws:iam::123456789012:root' },
+          Principal: { AWS: principalArn },
           Action: ['s3:GetObject'],
           Resource: [`arn:aws:s3:::${realBucket}/*`],
         },
@@ -702,13 +716,8 @@ test('Bucket policy behaves consistently (where permitted)', async (t) => {
 
     if (realPut.status === 'rejected') {
       const err = realPut.reason;
-      if (
-        err?.name === 'AccessDenied' ||
-        err?.$metadata?.httpStatusCode === 403 ||
-        err?.name === 'MalformedPolicy' ||
-        err?.Code === 'MalformedPolicy'
-      ) {
-        t.skip('Unable to apply bucket policy on real AWS (permissions or policy validation); skipping comparison');
+      if (err?.name === 'AccessDenied' || err?.$metadata?.httpStatusCode === 403) {
+        t.skip('AccessDenied for PutBucketPolicy on real AWS; skipping comparison');
       }
       throw err;
     }
@@ -736,16 +745,46 @@ test('Bucket policy behaves consistently (where permitted)', async (t) => {
 // Bucket ACL
 // -----------------------------------------------------------------------------
 
+async function enableBucketAclsOnRealBucket(realS3, bucket) {
+  await realS3.send(
+    new PutBucketOwnershipControlsCommand({
+      Bucket: bucket,
+      OwnershipControls: {
+        Rules: [
+          {
+            ObjectOwnership: 'BucketOwnerPreferred',
+          },
+        ],
+      },
+    }),
+  );
+}
+
 test('Bucket ACL behaves consistently (basic round-trip)', async (t) => {
   await withIsolatedBuckets(t, async ({ realS3, s3ForMock, realBucket, mockBucket }) => {
+    const list = await realS3.send(new ListBucketsCommand({}));
+    const canonicalId = list.Owner?.ID;
+    if (!canonicalId) {
+      t.skip('Unable to determine canonical user ID from ListBuckets owner');
+    }
+
+    try {
+      await enableBucketAclsOnRealBucket(realS3, realBucket);
+    } catch (err) {
+      if (err?.name === 'AccessDenied' || err?.$metadata?.httpStatusCode === 403) {
+        t.skip('AccessDenied for PutBucketOwnershipControls on real AWS; skipping ACL comparison');
+      }
+      throw err;
+    }
+
     const acl = {
-      Owner: { ID: 'default-owner-id', DisplayName: 'default-owner' },
+      Owner: { ID: canonicalId, DisplayName: 'owner' },
       Grants: [
         {
           Grantee: {
             Type: 'CanonicalUser',
-            ID: 'default-owner-id',
-            DisplayName: 'default-owner',
+            ID: canonicalId,
+            DisplayName: 'owner',
           },
           Permission: 'FULL_CONTROL',
         },
@@ -759,12 +798,8 @@ test('Bucket ACL behaves consistently (basic round-trip)', async (t) => {
 
     if (realPut.status === 'rejected') {
       const err = realPut.reason;
-      if (
-        err?.name === 'AccessDenied' ||
-        err?.$metadata?.httpStatusCode === 403 ||
-        err?.name === 'InvalidArgument'
-      ) {
-        t.skip('Unable to set custom bucket ACL on real AWS; skipping comparison');
+      if (err?.name === 'AccessDenied' || err?.$metadata?.httpStatusCode === 403) {
+        t.skip('AccessDenied for PutBucketAcl on real AWS; skipping comparison');
       }
       throw err;
     }
